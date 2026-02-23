@@ -1,0 +1,11 @@
+# Private config
+.claude/
+.env
+.mcp.json
+.vscode/
+
+# Backup files
+backup/
+
+# Node.js
+node_modules/

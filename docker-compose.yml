@@ -1,0 +1,69 @@
+version: '3.8'
+name: n8n   # 固定 project 名稱，確保掛載舊 volume n8n_n8n_data
+
+services:
+
+  # ── n8n ──────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - GENERIC_TIMEZONE=Asia/Taipei
+      - TZ=Asia/Taipei
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=1000
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - web_shared_network
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        n8n &
+        N8N_PID=$!
+        echo "[startup] 等待 n8n 啟動..."
+        RETRY=0
+        until wget -q --spider http://localhost:5678/healthz 2>/dev/null; do
+          sleep 5
+          RETRY=$((RETRY + 1))
+          if [ "$RETRY" -ge 24 ]; then
+            echo "[startup] n8n 啟動逾時"
+            break
+          fi
+        done
+        if wget -q --spider http://localhost:5678/healthz 2>/dev/null; then
+          echo "[startup] 等待 webhooks 完成註冊..."
+          sleep 10
+          echo "[startup] 觸發天氣推送..."
+          for i in 1 2 3; do
+            wget -q -O /dev/null "http://localhost:5678/webhook/weather-push" && break
+            echo "[startup] 天氣推送重試 $i..."
+            sleep 5
+          done
+          echo "[startup] 天氣推送完成！"
+          echo "[startup] 觸發AI新聞推送..."
+          for i in 1 2 3; do
+            wget -q -O /dev/null "http://localhost:5678/webhook/push-ai-news-v3" && break
+            echo "[startup] AI新聞推送重試 $i..."
+            sleep 5
+          done
+          echo "[startup] AI新聞推送完成！"
+        fi
+        wait $N8N_PID
+
+networks:
+  web_shared_network:
+
+volumes:
+  n8n_data:
+    name: n8n_n8n_data
