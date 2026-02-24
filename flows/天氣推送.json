@@ -1,0 +1,85 @@
+{
+  "name": "天氣推送",
+  "nodes": [
+    {
+      "id": "webhook-trigger-1",
+      "name": "Webhook 觸發",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-496, -208],
+      "webhookId": "weather-push-001",
+      "parameters": {
+        "path": "weather-push",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "http-request-1",
+      "name": "取得士林天氣",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-208, -208],
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "latitude",     "value": "25.0939" },
+            { "name": "longitude",    "value": "121.5265" },
+            { "name": "current",      "value": "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,apparent_temperature" },
+            { "name": "daily",        "value": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" },
+            { "name": "timezone",     "value": "Asia/Taipei" },
+            { "name": "forecast_days","value": "2" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "code-1",
+      "name": "格式化天氣訊息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [128, -208],
+      "parameters": {
+        "jsCode": "// === 天氣去重：每日只發送一次 ===\nconst staticData = $getWorkflowStaticData('global');\nconst taiwanNow = new Date(new Date().getTime() + 8 * 60 * 60 * 1000);\nconst todayStr = taiwanNow.toISOString().split('T')[0];\nif (staticData.lastSentDate === todayStr) {\n  console.log('今日天氣已發送，略過');\n  return [];\n}\nstaticData.lastSentDate = todayStr;\n\nconst data = $input.first().json;\nconst current = data.current;\nconst daily = data.daily;\n\nconst weatherCodes = {\n  0: '☀️ 晴天',\n  1: '🌤️ 大致晴朗',\n  2: '⛅ 局部多雲',\n  3: '☁️ 陰天',\n  45: '🌫️ 霧',\n  48: '🌫️ 霧淞',\n  51: '🌦️ 輕微毛毛雨',\n  53: '🌦️ 毛毛雨',\n  55: '🌦️ 濃密毛毛雨',\n  61: '🌧️ 小雨',\n  63: '🌧️ 中雨',\n  65: '🌧️ 大雨',\n  71: '🌨️ 小雪',\n  73: '🌨️ 中雪',\n  75: '🌨️ 大雪',\n  80: '🌦️ 陣雨',\n  81: '🌧️ 中陣雨',\n  82: '⛈️ 大陣雨',\n  95: '⛈️ 雷暴',\n  96: '⛈️ 雷暴伴冰雹',\n  99: '⛈️ 強雷暴伴冰雹',\n};\n\nconst fmt = (code) => weatherCodes[code] || `代碼 ${code}`;\n\nconst toDate = (str) => new Date(str).toLocaleDateString('zh-TW', {\n  timeZone: 'Asia/Taipei',\n  month: 'long',\n  day: 'numeric',\n  weekday: 'long'\n});\n\nconst todaySection = [\n  '## 📅 今天　' + toDate(daily.time[0]),\n  `> ${fmt(daily.weather_code[0])}`,\n  `> 🌡️ 現在：**${current.temperature_2m}°C**　體感 ${current.apparent_temperature}°C`,\n  `> 📊 高低溫：${daily.temperature_2m_max[0]}°C / ${daily.temperature_2m_min[0]}°C`,\n  `> 🌧️ 降雨機率：${daily.precipitation_probability_max[0]}%`,\n  `> 💧 濕度：${current.relative_humidity_2m}%　💨 風速：${current.wind_speed_10m} km/h`,\n].join('\\n');\n\nconst tomorrowSection = [\n  '## 📅 明天　' + toDate(daily.time[1]),\n  `> ${fmt(daily.weather_code[1])}`,\n  `> 📊 高低溫：${daily.temperature_2m_max[1]}°C / ${daily.temperature_2m_min[1]}°C`,\n  `> 🌧️ 降雨機率：${daily.precipitation_probability_max[1]}%`,\n].join('\\n');\n\nconst message = [\n  '# 🌏 台北市士林區 天氣預報',\n  '',\n  todaySection,\n  '',\n  tomorrowSection,\n].join('\\n');\n\nreturn [{ json: { content: message } }];"
+      }
+    },
+    {
+      "id": "discord-1",
+      "name": "Discord 推送天氣",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [448, -208],
+      "webhookId": "6c3f480a-1159-43ab-ad2f-24d7c9001087",
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.content }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "jZOFvBc02V5SyGwf",
+          "name": "bot通知"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook 觸發": {
+      "main": [[{ "node": "取得士林天氣", "type": "main", "index": 0 }]]
+    },
+    "取得士林天氣": {
+      "main": [[{ "node": "格式化天氣訊息", "type": "main", "index": 0 }]]
+    },
+    "格式化天氣訊息": {
+      "main": [[{ "node": "Discord 推送天氣", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {}
+}

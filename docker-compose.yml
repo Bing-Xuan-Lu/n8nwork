@@ -51,11 +51,13 @@ services:
             sleep 5
           done
           echo "[startup] 天氣推送完成！"
+          echo "[startup] 等待 AI新聞推送 webhook 就緒..."
+          sleep 15
           echo "[startup] 觸發AI新聞推送..."
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5 6; do
             wget -q -O /dev/null "http://localhost:5678/webhook/push-ai-news-v3" && break
-            echo "[startup] AI新聞推送重試 $i..."
-            sleep 5
+            echo "[startup] AI新聞推送重試 $i/6..."
+            sleep 10
           done
           echo "[startup] AI新聞推送完成！"
         fi
