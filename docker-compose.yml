@@ -54,48 +54,8 @@ services:
         fi
         wait $N8N_PID
 
-  # ── 網路監控 ──────────────────────────────────────────────────
-  network-monitor:
-    image: alpine:latest
-    container_name: network-monitor
-    restart: always
-    depends_on:
-      - n8n
-    networks:
-      - web_shared_network
-    command:
-      - /bin/sh
-      - -c
-      - |
-        echo "[net-monitor] 啟動，等待 n8n 就緒..."
-        until wget -q --spider http://n8n:5678/healthz 2>/dev/null; do sleep 5; done
-        echo "[net-monitor] 開始監控網路..."
-        ONLINE=1
-        DOWN_SINCE=""
-        while true; do
-          if ping -c 1 -W 3 8.8.8.8 > /dev/null 2>&1; then
-            if [ "$ONLINE" = "0" ]; then
-              echo "[net-monitor] 網路恢復！通知 n8n..."
-              for i in 1 2 3 4 5; do
-                wget -q -O /dev/null \
-                  --header="Content-Type: application/json" \
-                  --post-data="{\"downSince\":\"$DOWN_SINCE\"}" \
-                  "http://n8n:5678/webhook/network-recovered" && break
-                echo "[net-monitor] 通知重試 $i..."
-                sleep 5
-              done
-              ONLINE=1
-              DOWN_SINCE=""
-            fi
-          else
-            if [ "$ONLINE" = "1" ]; then
-              DOWN_SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-              echo "[net-monitor] 斷線偵測！downSince=$DOWN_SINCE"
-              ONLINE=0
-            fi
-          fi
-          sleep 5
-        done
+  # 網路監控已改由 Windows 主機端 Node.js 執行
+  # 啟動方式：scripts/register-network-monitor-task.ps1
 
 networks:
   web_shared_network:

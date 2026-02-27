@@ -58,6 +58,7 @@ n8nwork/
 | 天氣推送 | `mdKFGSBLSuWhI1sc6gS03` | Webhook `weather-push`（Docker 啟動時觸發） | 推送天氣至 Discord bot通知 |
 | AI新聞推送 | `ZBjln2ULmeZoCiiA` | Schedule 每日 23:00 | 抓 RSS → Gemini 摘要 → Discord bot_ai新知 |
 | 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered`（alpine container 觸發） | 斷網恢復時通知 Discord bot通知 |
+| MCP Server 週報 | `LxwVTKy2YIt80LP1` | Schedule 每週一 09:00 | 抓 GitHub MCP Server → Gemini 評選 5 個 → Discord bot_ai新知 |
 
 ---
 

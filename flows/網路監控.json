@@ -8,11 +8,7 @@
       "typeVersion": 2,
       "position": [-400, 0],
       "webhookId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-      "parameters": {
-        "path": "network-recovered",
-        "responseMode": "onReceived",
-        "options": {}
-      }
+      "parameters": { "path": "network-recovered", "responseMode": "onReceived", "options": {} }
     },
     {
       "id": "net-format",
@@ -21,7 +17,26 @@
       "typeVersion": 2,
       "position": [0, 0],
       "parameters": {
-        "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : null;\nconst now = new Date();\n\nlet downDuration = '未知';\nif (downSince && !isNaN(downSince.getTime())) {\n  const diffMs = now - downSince;\n  const diffMin = Math.floor(diffMs / 60000);\n  downDuration = diffMin >= 60\n    ? `${Math.floor(diffMin / 60)} 小時 ${diffMin % 60} 分鐘`\n    : diffMin > 0 ? `${diffMin} 分鐘` : '不到 1 分鐘';\n}\n\nconst nowStr = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst content = [\n  '🌐 **網路連線已恢復** ✅',\n  `📅 ${nowStr}`,\n  `⏱️ 斷線時長：${downDuration}`,\n].join('\\n');\nreturn [{ json: { content } }];"
+        "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : null;\nconst now = new Date();\n\nlet downDuration = '未知';\nif (downSince && !isNaN(downSince.getTime())) {\n  const diffMs = now - downSince;\n  const diffMin = Math.floor(diffMs / 60000);\n  downDuration = diffMin >= 60\n    ? `${Math.floor(diffMin / 60)} 小時 ${diffMin % 60} 分鐘`\n    : diffMin > 0 ? `${diffMin} 分鐘` : '不到 1 分鐘';\n}\n\nconst nowStr = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🌐 **網路連線已恢復** ✅',\n  `📅 ${nowStr}`,\n  `⏱️ 斷線時長：${downDuration}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
+      }
+    },
+    {
+      "id": "net-down-webhook",
+      "name": "網路斷線 Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-400, 200],
+      "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "parameters": { "path": "network-down", "responseMode": "onReceived", "options": {} }
+    },
+    {
+      "id": "net-down-format",
+      "name": "組合斷線訊息",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : new Date();\nconst nowStr = downSince.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🔴 **網路連線已中斷** ❌',\n  `📅 ${nowStr}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
       }
     },
     {
@@ -29,24 +44,17 @@
       "name": "Discord 通知",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [400, 0],
-      "parameters": {
-        "authentication": "webhook",
-        "content": "={{ $json.content }}",
-        "options": {}
-      },
-      "credentials": {
-        "discordWebhookApi": { "id": "jZOFvBc02V5SyGwf", "name": "bot通知" }
-      }
+      "position": [400, 100],
+      "parameters": { "authentication": "webhook", "content": "={{ $json.content }}", "options": {} },
+      "credentials": { "discordWebhookApi": { "id": "jZOFvBc02V5SyGwf", "name": "bot通知" } }
     }
   ],
   "connections": {
     "網路恢復 Webhook": { "main": [[{ "node": "組合通知訊息", "type": "main", "index": 0 }]] },
-    "組合通知訊息":     { "main": [[{ "node": "Discord 通知",  "type": "main", "index": 0 }]] }
+    "組合通知訊息":     { "main": [[{ "node": "Discord 通知",  "type": "main", "index": 0 }]] },
+    "網路斷線 Webhook": { "main": [[{ "node": "組合斷線訊息", "type": "main", "index": 0 }]] },
+    "組合斷線訊息":     { "main": [[{ "node": "Discord 通知",  "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
-  },
+  "settings": { "executionOrder": "v1", "callerPolicy": "workflowsFromSameOwner" },
   "pinData": {}
 }
