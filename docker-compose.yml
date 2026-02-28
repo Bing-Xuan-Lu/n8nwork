@@ -54,9 +54,6 @@ services:
         fi
         wait $N8N_PID
 
-  # 網路監控已改由 Windows 主機端 Node.js 執行
-  # 啟動方式：scripts/register-network-monitor-task.ps1
-
 networks:
   web_shared_network:
 

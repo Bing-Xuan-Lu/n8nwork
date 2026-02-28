@@ -10,7 +10,7 @@ n8n 自動化工作流系統，以 Docker Compose 運行於 Windows 10 本機。
 
 ```
 n8nwork/
-├── docker-compose.yml      # Docker 設定（n8n + network-monitor 兩個 service）
+├── docker-compose.yml      # Docker 設定（n8n service）
 ├── .env                    # 私鑰（不 commit）: N8N_API_KEY, GOOGLE_AUTH 等
 ├── .mcp.json               # MCP server 設定（n8n API key 在此）
 ├── flows/                  # 工作流 JSON 備份（手動同步）
@@ -18,9 +18,10 @@ n8nwork/
 │   ├── 天氣推送.json
 │   └── 網路監控.json
 ├── bridge/
-│   └── ai-bridge.js        # 橋接伺服器 port 3001，Claude CLI → Gemini CLI fallback
-│                            # （AI新聞推送已改直接呼叫 Gemini REST API，此橋接備用）
-├── scripts/                # Windows 啟動腳本（register-bridge-task.ps1 等）
+│   ├── ai-bridge.js        # 橋接伺服器 port 3001，Claude CLI → Gemini CLI fallback
+│   │                        # （AI新聞推送已改直接呼叫 Gemini REST API，此橋接備用）
+│   └── network-monitor.js  # 事件驅動 TLS 網路監控（連到 1.1.1.1:443），Windows 原生執行
+├── scripts/                # Windows 啟動腳本（register-bridge-task.ps1、register-network-monitor-task.ps1）
 └── docs/UPDATE.md          # Docker 更新/備份指南
 ```
 
@@ -28,10 +29,8 @@ n8nwork/
 
 ## Docker 服務
 
-| Service | Image | 說明 |
-|---|---|---|
-| `n8n` | n8nio/n8n:latest | port 5678，啟動後自動觸發天氣推送 webhook |
-| `network-monitor` | alpine:latest | 每 5 秒 ping 8.8.8.8，斷線恢復時 POST webhook |
+- **`n8n`** (`n8nio/n8n:latest`) — port 5678，啟動後自動觸發天氣推送 webhook
+- **網路監控** — Windows 原生 Node.js（`bridge/network-monitor.js`），工作排程器開機自動啟動
 
 **Network**: `web_shared_network`（bridge）
 **Volume**: `n8n_data` → 固定名稱 `n8n_n8n_data`
@@ -57,7 +56,7 @@ n8nwork/
 |---|---|---|---|
 | 天氣推送 | `mdKFGSBLSuWhI1sc6gS03` | Webhook `weather-push`（Docker 啟動時觸發） | 推送天氣至 Discord bot通知 |
 | AI新聞推送 | `ZBjln2ULmeZoCiiA` | Schedule 每日 23:00 | 抓 RSS → Gemini 摘要 → Discord bot_ai新知 |
-| 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered`（alpine container 觸發） | 斷網恢復時通知 Discord bot通知 |
+| 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered`（Windows Node.js 觸發） | 斷網恢復時通知 Discord bot通知 |
 | MCP Server 週報 | `LxwVTKy2YIt80LP1` | Schedule 每週一 09:00 | 抓 GitHub MCP Server → Gemini 評選 5 個 → Discord bot_ai新知 |
 
 ---
