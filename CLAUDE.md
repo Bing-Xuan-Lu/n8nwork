@@ -58,6 +58,7 @@ n8nwork/
 | AI新聞推送 | `ZBjln2ULmeZoCiiA` | Schedule 每日 23:00 | 抓 RSS → Gemini 摘要 → Discord bot_ai新知 |
 | 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered`（Windows Node.js 觸發） | 斷網恢復時通知 Discord bot通知 |
 | MCP Server 週報 | `LxwVTKy2YIt80LP1` | Schedule 每週一 09:00 | 抓 GitHub MCP Server → Gemini 評選 5 個 → Discord bot_ai新知 |
+| Discord 指令調度器 | `XEX5TLxo9hIgzsG7` | Discord Trigger 即時監聽（community node） | 監聽頻道 1478051589276045362，`!news`/`!週報`/`!help` 指令路由 |
 
 ---
 

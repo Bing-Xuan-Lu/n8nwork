@@ -6,11 +6,17 @@
       "name": "排程觸發",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [-900, -200],
+      "position": [
+        -900,
+        -200
+      ],
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "cronExpression", "expression": "0 23 * * *" }
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
           ]
         }
       }
@@ -20,31 +26,50 @@
       "name": "RSS 科技新報",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1,
-      "position": [-600, -350],
-      "parameters": { "url": "https://technews.tw/feed/" }
+      "position": [
+        -600,
+        -350
+      ],
+      "parameters": {
+        "url": "https://technews.tw/feed/"
+      }
     },
     {
       "id": "rss-inside",
       "name": "RSS TechOrange",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1,
-      "position": [-600, -50],
-      "parameters": { "url": "https://buzzorange.com/techorange/feed/" }
+      "position": [
+        -600,
+        -50
+      ],
+      "parameters": {
+        "url": "https://buzzorange.com/techorange/feed/"
+      }
     },
     {
       "id": "merge-news",
       "name": "合併新聞來源",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [-300, -200],
-      "parameters": { "mode": "append", "options": {} }
+      "position": [
+        -300,
+        -200
+      ],
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      }
     },
     {
       "id": "code-filter-3",
       "name": "篩選今日新聞",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, -200],
+      "position": [
+        0,
+        -200
+      ],
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "const allItems = $input.all();\nconst keywords = [\n  // AI / ML\n  'claude', 'chatgpt', 'gemini', 'openai', 'grok', 'anthropic', 'copilot',\n  'ai模型', '生成式ai', '人工智慧', 'llm', 'sora', 'deepseek', '大模型',\n  'ai助理', '機器學習', '深度學習', 'ai創作', '神經網路',\n  // 程式語言 / 開發\n  'python', 'javascript', 'typescript', 'rust', 'golang', 'java', 'kotlin',\n  'swift', 'php', '.net', 'node.js', 'react', 'vue', 'angular',\n  '程式語言', 'github', '開源', 'open source',\n  // 雲端 / 基礎設施\n  'aws', 'azure', 'kubernetes', 'docker', 'devops', '雲端', '容器',\n  'linux', '微服務', 'api',\n  // 資安\n  '資安', '資訊安全', 'cybersecurity', '漏洞', '駭客', 'zero-day',\n  // 科技硬體 / 大廠\n  '晶片', '半導體', 'nvidia', 'intel', 'amd', 'apple', 'microsoft',\n  '軟體', '開發者', '工程師', '框架', '資料庫'\n];\nconst now = new Date();\nconst taiwanNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);\n\nfunction getDateTW(pub) {\n  if (!pub) return null;\n  try {\n    const d = new Date(pub);\n    if (isNaN(d.getTime())) return null;\n    return new Date(d.getTime() + 8 * 60 * 60 * 1000);\n  } catch(e) { return null; }\n}\n\nfunction scoreItem(item) {\n  const title = (item.json.title || '').toLowerCase();\n  const content = (item.json.contentSnippet || item.json.content || '').toLowerCase();\n  return keywords.reduce((acc, kw) => acc + (title.includes(kw) ? 3 : 0) + (content.includes(kw) ? 1 : 0), 0);\n}\n\n// 逐日往回找，最多 7 天（只選有 AI 相關新聞的日期）\nlet pool = null;\nlet daysBack = 0;\n\nfor (let i = 0; i <= 7; i++) {\n  const target = new Date(taiwanNow.getTime() - i * 24 * 60 * 60 * 1000);\n  const targetStr = target.toISOString().split('T')[0];\n  const dayItems = allItems.filter(item => {\n    const d = getDateTW(item.json.pubDate || item.json.isoDate);\n    return d && d.toISOString().split('T')[0] === targetStr;\n  });\n  // 只採用有 AI 關鍵字的文章（score > 0），非 AI 新聞直接跳過\n  const aiItems = dayItems.filter(item => scoreItem(item) > 0);\n  if (aiItems.length > 0) {\n    pool = aiItems;\n    daysBack = i;\n    break;\n  }\n}\n\nif (!pool) return [];\n\n// 標題去重\nconst seen = new Set();\nconst unique = pool.filter(item => {\n  const key = (item.json.title || '').substring(0, 30);\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\n// 評分排序，取前 5\nconst scored = unique.map(item => ({ score: scoreItem(item), json: item.json }));\nscored.sort((a, b) => b.score - a.score);\nconst top5 = scored.slice(0, 5);\n\n// 靜態資料去重（僅限今日新聞，回推舊文章不去重）\nconst staticData = $getWorkflowStaticData('global');\nconst sentLinks = new Set(staticData.sentLinks || []);\n\nlet articles = top5.map(item => ({\n  title: (item.json.title || '無標題').substring(0, 80),\n  link: item.json.link || item.json.guid || ''\n}));\n\nif (daysBack === 0) {\n  articles = articles.filter(a => !sentLinks.has(a.link));\n  if (articles.length === 0) {\n    console.log('今日文章已全部發送過，略過');\n    return [];\n  }\n  // 記錄已發送（保留最多 100 筆）\n  staticData.sentLinks = [\n    ...(staticData.sentLinks || []),\n    ...articles.map(a => a.link)\n  ].slice(-100);\n}\n\nconst titleList = articles.map((a, i) => (i+1) + '. ' + a.title).join('\\n');\nconst prompt = '請用繁體中文，為以下每則AI新聞標題各寫一句話重點摘要（不超過35字）。\\n格式：只回傳「編號. 摘要」，不要重複標題文字。\\n\\n新聞標題：\\n' + titleList;\n\nconst period = daysBack === 0 ? 'today' : (daysBack === 1 ? '昨日' : daysBack + '天前');\nreturn [{ json: { articles, prompt, period, daysBack } }];"
@@ -55,7 +80,10 @@
       "name": "Gemini摘要",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [300, -200],
+      "position": [
+        300,
+        -200
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
@@ -68,7 +96,10 @@
         "options": {}
       },
       "credentials": {
-        "googlePalmApi": { "id": "Xw882n6J03q5FPQI", "name": "Google Gemini(PaLM) Api account" }
+        "googlePalmApi": {
+          "id": "Xw882n6J03q5FPQI",
+          "name": "Google Gemini(PaLM) Api account"
+        }
       }
     },
     {
@@ -76,7 +107,10 @@
       "name": "組合Discord訊息",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [600, -200],
+      "position": [
+        600,
+        -200
+      ],
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "const filterData = $('篩選今日新聞').first().json;\nconst articles = filterData.articles || [];\nconst period = filterData.period || 'today';\nconst daysBack = filterData.daysBack || 0;\nconst geminiText = ($json.candidates?.[0]?.content?.parts?.[0]?.text) || '';\nconst lines = geminiText.split('\\n');\nconst summaries = [];\nfor (const line of lines) {\n  const m = line.trim().match(/^(\\d+)[.、:：]\\s*(.+)/);\n  if (m) summaries[parseInt(m[1]) - 1] = m[2].trim();\n}\nconst today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });\nconst periodNote = daysBack > 0 ? '（' + period + '新聞）\\n\\n' : '';\nconst header = '🤖 **AI 科技新聞快報** 📰\\n📅 ' + today + '\\n\\n' + periodNote;\nconst footer = '\\n> 資料來源：科技新報 & TechOrange';\nconst MAX = 1900;\nlet parts = [], totalLen = header.length + footer.length;\nfor (let i = 0; i < articles.length; i++) {\n  const title = articles[i].title, link = articles[i].link;\n  const summary = summaries[i] || '';\n  const part = '**' + (i+1) + '. ' + title + '**\\n' + (summary ? summary + '\\n' : '') + link;\n  const addLen = part.length + (parts.length > 0 ? 2 : 0);\n  if (totalLen + addLen > MAX) break;\n  parts.push(part); totalLen += addLen;\n}\nconst content = header + parts.join('\\n\\n') + footer;\nreturn [{ json: { content } }];"
@@ -87,39 +121,150 @@
       "name": "Discord推送AI新聞",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [900, -200],
+      "position": [
+        900,
+        -200
+      ],
       "parameters": {
         "authentication": "webhook",
         "content": "={{ $json.content }}",
         "options": {}
       },
       "credentials": {
-        "discordWebhookApi": { "id": "lrmdeEtQUhigUA6Q", "name": "bot_ai新知" }
+        "discordWebhookApi": {
+          "id": "lrmdeEtQUhigUA6Q",
+          "name": "bot_ai新知"
+        }
+      }
+    },
+    {
+      "id": "discord-webhook",
+      "name": "Discord 指令觸發",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        100
+      ],
+      "webhookId": "dc11aa22-bb33-cc44-dd55-ee6677889900",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "discord-news",
+        "responseMode": "onReceived",
+        "options": {}
       }
     }
   ],
   "connections": {
     "排程觸發": {
-      "main": [[
-        { "node": "RSS 科技新報",  "type": "main", "index": 0 },
-        { "node": "RSS TechOrange", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "RSS 科技新報",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS TechOrange",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "RSS 科技新報":  { "main": [[{ "node": "合併新聞來源", "type": "main", "index": 0 }]] },
-    "RSS TechOrange":{ "main": [[{ "node": "合併新聞來源", "type": "main", "index": 1 }]] },
-    "合併新聞來源":  { "main": [[{ "node": "篩選今日新聞", "type": "main", "index": 0 }]] },
-    "篩選今日新聞":  { "main": [[{ "node": "Gemini摘要",   "type": "main", "index": 0 }]] },
-    "Gemini摘要":    { "main": [[{ "node": "組合Discord訊息", "type": "main", "index": 0 }]] },
-    "組合Discord訊息":{ "main": [[{ "node": "Discord推送AI新聞", "type": "main", "index": 0 }]] }
+    "RSS 科技新報": {
+      "main": [
+        [
+          {
+            "node": "合併新聞來源",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS TechOrange": {
+      "main": [
+        [
+          {
+            "node": "合併新聞來源",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "合併新聞來源": {
+      "main": [
+        [
+          {
+            "node": "篩選今日新聞",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "篩選今日新聞": {
+      "main": [
+        [
+          {
+            "node": "Gemini摘要",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini摘要": {
+      "main": [
+        [
+          {
+            "node": "組合Discord訊息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "組合Discord訊息": {
+      "main": [
+        [
+          {
+            "node": "Discord推送AI新聞",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord 指令觸發": {
+      "main": [
+        [
+          {
+            "node": "RSS 科技新報",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS TechOrange",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "settings": {
-    "executionOrder": "v1",
     "saveExecutionProgress": true,
     "saveManualExecutions": true,
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
     "executionTimeout": 3600,
-    "callerPolicy": "workflowsFromSameOwner"
+    "timezone": "UTC",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "executionOrder": "v1"
   },
   "pinData": {}
 }
