@@ -58,7 +58,7 @@ n8nwork/
 | AI新聞推送 | `ZBjln2ULmeZoCiiA` | Schedule 每日 23:00 | 抓 RSS → Gemini 摘要 → Discord bot_ai新知 |
 | 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered`（Windows Node.js 觸發） | 斷網恢復時通知 Discord bot通知 |
 | MCP Server 週報 | `LxwVTKy2YIt80LP1` | Schedule 每週一 09:00 | 抓 GitHub MCP Server → Gemini 評選 5 個 → Discord bot_ai新知 |
-| Discord 指令調度器 | `XEX5TLxo9hIgzsG7` | Discord Trigger 即時監聽（community node） | 監聽頻道 1478051589276045362，`!news`/`!週報`/`!help` 指令路由 |
+| Discord 指令調度器 | `XEX5TLxo9hIgzsG7` | Discord Trigger 即時監聽（community node） | 監聽頻道 1478051589276045362，`!news`/`!mcpweeknews`/`!help` 指令路由 |
 
 ---
 
@@ -113,3 +113,46 @@ curl -s http://localhost:5678/api/v1/executions?limit=5 \
 ## flows/ 同步說明
 
 `flows/` 為手動備份，修改工作流後需手動更新 JSON（從 n8n GET workflow 取得並覆寫）。
+
+---
+
+## MCP Tools 設定
+
+`.mcp.json` 包含兩個互補的 n8n MCP Server：
+
+| Server 名稱 | 套件 | 定位 | 主要工具 |
+| --- | --- | --- | --- |
+| `n8n` | `@leonardsellem/n8n-mcp-server` v0.1.8 | **操作** n8n 實例 | `get_workflow` `create_workflow` `list_executions` `activate_workflow` |
+| `n8n-mcp` | `n8n-mcp` v2.35.5（czlonkowski） | **知識庫**（節點文件 + 模板） | `search_nodes` `get_node` `validate_workflow` `search_templates` |
+
+### 安裝方式（新環境部署）
+
+```bash
+# 1. 安裝 n8n-mcp 套件
+npm install -g n8n-mcp
+
+# 2. 安裝 @leonardsellem/n8n-mcp-server（舊版管理工具）
+npm install -g @leonardsellem/n8n-mcp-server
+
+# 3. 安裝 n8n-skills（7 個 Claude Code Skills）
+git clone --depth=1 https://github.com/czlonkowski/n8n-skills.git /tmp/n8n-skills
+EXT_DIR="$HOME/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/czlonkowski-n8n-skills"
+mkdir -p "$EXT_DIR"
+cp -r /tmp/n8n-skills/skills "$EXT_DIR/"
+cp /tmp/n8n-skills/.claude-plugin/plugin.json "$EXT_DIR/"
+rm -rf /tmp/n8n-skills
+
+# 4. 複製 .mcp.json（內含 N8N_API_KEY）並重新啟動 Claude Code
+```
+
+### n8n-skills 提供的 7 個 Skills
+
+| Skill | 用途 |
+| --- | --- |
+| `n8n-mcp-tools-expert` | 指導如何選用 n8n-mcp 工具 |
+| `n8n-workflow-patterns` | Webhook/排程/API 等常見模式 |
+| `n8n-validation-expert` | 驗證設定錯誤 |
+| `n8n-expression-syntax` | n8n expression 語法 |
+| `n8n-node-configuration` | 節點參數設定 |
+| `n8n-code-javascript` | Code 節點 JS 範例 |
+| `n8n-code-python` | Code 節點 Python 範例 |

@@ -1,60 +1,330 @@
 {
-  "name": "網路監控",
-  "nodes": [
-    {
-      "id": "net-webhook",
-      "name": "網路恢復 Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [-400, 0],
-      "webhookId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-      "parameters": { "path": "network-recovered", "responseMode": "onReceived", "options": {} }
+    "updatedAt": "2026-03-05T13:44:48.964Z",
+    "createdAt": "2026-02-25T15:57:40.153Z",
+    "id": "cPGAOxwlki9pB88x",
+    "name": "網路監控",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+        {
+            "id": "net-webhook",
+            "name": "網路恢復 Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                -400,
+                0
+            ],
+            "webhookId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "network-recovered",
+                "responseMode": "onReceived",
+                "options": {}
+            }
+        },
+        {
+            "id": "net-format",
+            "name": "組合通知訊息",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                0,
+                0
+            ],
+            "parameters": {
+                "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : null;\nconst now = new Date();\n\nlet downDuration = '未知';\nif (downSince && !isNaN(downSince.getTime())) {\n  const diffMs = now - downSince;\n  const diffMin = Math.floor(diffMs / 60000);\n  downDuration = diffMin >= 60\n    ? `${Math.floor(diffMin / 60)} 小時 ${diffMin % 60} 分鐘`\n    : diffMin > 0 ? `${diffMin} 分鐘` : '不到 1 分鐘';\n}\n\nconst nowStr = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🌐 **網路連線已恢復** ✅',\n  `📅 ${nowStr}`,\n  `⏱️ 斷線時長：${downDuration}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
+            }
+        },
+        {
+            "id": "net-down-webhook",
+            "name": "網路斷線 Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                -400,
+                200
+            ],
+            "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "network-down",
+                "responseMode": "onReceived",
+                "options": {}
+            }
+        },
+        {
+            "id": "net-down-format",
+            "name": "組合斷線訊息",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                0,
+                200
+            ],
+            "parameters": {
+                "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : new Date();\nconst nowStr = downSince.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🔴 **網路連線已中斷** ❌',\n  `📅 ${nowStr}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
+            }
+        },
+        {
+            "id": "net-discord",
+            "name": "Discord 通知",
+            "type": "n8n-nodes-base.discord",
+            "typeVersion": 2,
+            "position": [
+                400,
+                100
+            ],
+            "parameters": {
+                "authentication": "webhook",
+                "content": "={{ $json.content }}",
+                "options": {}
+            },
+            "credentials": {
+                "discordWebhookApi": {
+                    "id": "jZOFvBc02V5SyGwf",
+                    "name": "bot通知"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "網路恢復 Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "組合通知訊息",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "組合通知訊息": {
+            "main": [
+                [
+                    {
+                        "node": "Discord 通知",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "網路斷線 Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "組合斷線訊息",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "組合斷線訊息": {
+            "main": [
+                [
+                    {
+                        "node": "Discord 通知",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
     },
-    {
-      "id": "net-format",
-      "name": "組合通知訊息",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [0, 0],
-      "parameters": {
-        "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : null;\nconst now = new Date();\n\nlet downDuration = '未知';\nif (downSince && !isNaN(downSince.getTime())) {\n  const diffMs = now - downSince;\n  const diffMin = Math.floor(diffMs / 60000);\n  downDuration = diffMin >= 60\n    ? `${Math.floor(diffMin / 60)} 小時 ${diffMin % 60} 分鐘`\n    : diffMin > 0 ? `${diffMin} 分鐘` : '不到 1 分鐘';\n}\n\nconst nowStr = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🌐 **網路連線已恢復** ✅',\n  `📅 ${nowStr}`,\n  `⏱️ 斷線時長：${downDuration}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
-      }
+    "settings": {
+        "saveExecutionProgress": true,
+        "saveManualExecutions": true,
+        "saveDataErrorExecution": "all",
+        "saveDataSuccessExecution": "all",
+        "executionTimeout": 3600,
+        "timezone": "UTC",
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false,
+        "executionOrder": "v1"
     },
-    {
-      "id": "net-down-webhook",
-      "name": "網路斷線 Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [-400, 200],
-      "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "parameters": { "path": "network-down", "responseMode": "onReceived", "options": {} }
+    "staticData": {
+        "node:定時檢查": {
+            "recurrenceRules": []
+        },
+        "global": {}
     },
-    {
-      "id": "net-down-format",
-      "name": "組合斷線訊息",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [0, 200],
-      "parameters": {
-        "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : new Date();\nconst nowStr = downSince.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🔴 **網路連線已中斷** ❌',\n  `📅 ${nowStr}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
-      }
-    },
-    {
-      "id": "net-discord",
-      "name": "Discord 通知",
-      "type": "n8n-nodes-base.discord",
-      "typeVersion": 2,
-      "position": [400, 100],
-      "parameters": { "authentication": "webhook", "content": "={{ $json.content }}", "options": {} },
-      "credentials": { "discordWebhookApi": { "id": "jZOFvBc02V5SyGwf", "name": "bot通知" } }
+    "meta": null,
+    "pinData": null,
+    "versionId": "39997d06-0712-488d-b9af-5e5d6636f616",
+    "activeVersionId": "39997d06-0712-488d-b9af-5e5d6636f616",
+    "versionCounter": 40,
+    "triggerCount": 2,
+    "shared": [
+        {
+            "updatedAt": "2026-02-25T15:57:40.155Z",
+            "createdAt": "2026-02-25T15:57:40.155Z",
+            "role": "workflow:owner",
+            "workflowId": "cPGAOxwlki9pB88x",
+            "projectId": "AoCIq5JRkialljrz",
+            "project": {
+                "updatedAt": "2026-02-04T16:02:35.455Z",
+                "createdAt": "2026-02-04T16:01:41.010Z",
+                "id": "AoCIq5JRkialljrz",
+                "name": "peter lu <peter888852@gmail.com>",
+                "type": "personal",
+                "icon": null,
+                "description": null,
+                "creatorId": "0bd3800a-8a59-43b2-8725-1f6789a39918"
+            }
+        }
+    ],
+    "tags": [],
+    "activeVersion": {
+        "updatedAt": "2026-03-05T13:44:48.966Z",
+        "createdAt": "2026-03-05T13:44:48.966Z",
+        "versionId": "39997d06-0712-488d-b9af-5e5d6636f616",
+        "workflowId": "cPGAOxwlki9pB88x",
+        "nodes": [
+            {
+                "id": "net-webhook",
+                "name": "網路恢復 Webhook",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 2,
+                "position": [
+                    -400,
+                    0
+                ],
+                "webhookId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "parameters": {
+                    "httpMethod": "POST",
+                    "path": "network-recovered",
+                    "responseMode": "onReceived",
+                    "options": {}
+                }
+            },
+            {
+                "id": "net-format",
+                "name": "組合通知訊息",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [
+                    0,
+                    0
+                ],
+                "parameters": {
+                    "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : null;\nconst now = new Date();\n\nlet downDuration = '未知';\nif (downSince && !isNaN(downSince.getTime())) {\n  const diffMs = now - downSince;\n  const diffMin = Math.floor(diffMs / 60000);\n  downDuration = diffMin >= 60\n    ? `${Math.floor(diffMin / 60)} 小時 ${diffMin % 60} 分鐘`\n    : diffMin > 0 ? `${diffMin} 分鐘` : '不到 1 分鐘';\n}\n\nconst nowStr = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🌐 **網路連線已恢復** ✅',\n  `📅 ${nowStr}`,\n  `⏱️ 斷線時長：${downDuration}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
+                }
+            },
+            {
+                "id": "net-down-webhook",
+                "name": "網路斷線 Webhook",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 2,
+                "position": [
+                    -400,
+                    200
+                ],
+                "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "parameters": {
+                    "httpMethod": "POST",
+                    "path": "network-down",
+                    "responseMode": "onReceived",
+                    "options": {}
+                }
+            },
+            {
+                "id": "net-down-format",
+                "name": "組合斷線訊息",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [
+                    0,
+                    200
+                ],
+                "parameters": {
+                    "jsCode": "const body = $json.body || {};\nconst downSince = body.downSince ? new Date(body.downSince) : new Date();\nconst nowStr = downSince.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });\nconst lines = [\n  '🔴 **網路連線已中斷** ❌',\n  `📅 ${nowStr}`,\n];\nif (body.unstable) {\n  lines.push(`⚠️ 過去 5 分鐘已斷線 ${body.dropCount} 次，網路不穩定！`);\n}\nreturn [{ json: { content: lines.join('\\n') } }];"
+                }
+            },
+            {
+                "id": "net-discord",
+                "name": "Discord 通知",
+                "type": "n8n-nodes-base.discord",
+                "typeVersion": 2,
+                "position": [
+                    400,
+                    100
+                ],
+                "parameters": {
+                    "authentication": "webhook",
+                    "content": "={{ $json.content }}",
+                    "options": {}
+                },
+                "credentials": {
+                    "discordWebhookApi": {
+                        "id": "jZOFvBc02V5SyGwf",
+                        "name": "bot通知"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "網路恢復 Webhook": {
+                "main": [
+                    [
+                        {
+                            "node": "組合通知訊息",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "組合通知訊息": {
+                "main": [
+                    [
+                        {
+                            "node": "Discord 通知",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "網路斷線 Webhook": {
+                "main": [
+                    [
+                        {
+                            "node": "組合斷線訊息",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "組合斷線訊息": {
+                "main": [
+                    [
+                        {
+                            "node": "Discord 通知",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "authors": "peter lu",
+        "name": null,
+        "description": null,
+        "autosaved": false,
+        "workflowPublishHistory": [
+            {
+                "createdAt": "2026-03-05T13:44:49.075Z",
+                "id": 57,
+                "workflowId": "cPGAOxwlki9pB88x",
+                "versionId": "39997d06-0712-488d-b9af-5e5d6636f616",
+                "event": "activated",
+                "userId": "0bd3800a-8a59-43b2-8725-1f6789a39918"
+            }
+        ]
     }
-  ],
-  "connections": {
-    "網路恢復 Webhook": { "main": [[{ "node": "組合通知訊息", "type": "main", "index": 0 }]] },
-    "組合通知訊息":     { "main": [[{ "node": "Discord 通知",  "type": "main", "index": 0 }]] },
-    "網路斷線 Webhook": { "main": [[{ "node": "組合斷線訊息", "type": "main", "index": 0 }]] },
-    "組合斷線訊息":     { "main": [[{ "node": "Discord 通知",  "type": "main", "index": 0 }]] }
-  },
-  "settings": { "executionOrder": "v1", "callerPolicy": "workflowsFromSameOwner" },
-  "pinData": {}
 }
