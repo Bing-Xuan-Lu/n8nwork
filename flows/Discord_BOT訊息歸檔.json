@@ -1,0 +1,273 @@
+{
+  "name": "Discord BOT 訊息歸檔",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "手動觸發",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fetch",
+      "name": "讀取 Discord 訊息",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://discord.com/api/v10/channels/1475146787974152355/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ITgiYEpOvlhGViAL",
+          "name": "Discord Bot (archive)"
+        }
+      }
+    },
+    {
+      "id": "prepare",
+      "name": "過濾並準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\n\n// Discord API 回傳 array，n8n 可能包成一個 item 或多個 items\nlet messages = [];\nif (items.length === 1 && Array.isArray(items[0].json)) {\n  messages = items[0].json;\n} else {\n  messages = items.map(i => i.json);\n}\n\n// 只取 bot 發的訊息（webhook 發的 author.bot === true）\nconst botMsgs = messages.filter(m => m && m.author && m.author.bot === true);\n\nif (botMsgs.length === 0) {\n  return [{ json: { sql: null, ids: [], count: 0 } }];\n}\n\nfunction esc(val) {\n  if (val === null || val === undefined) return 'NULL';\n  return \"'\" + String(val)\n    .replace(/\\\\/g, '\\\\\\\\')\n    .replace(/'/g, \"\\\\'\")\n    .replace(/\\n/g, '\\\\n')\n    .replace(/\\r/g, '\\\\r')\n    .replace(/\\0/g, '\\\\0') + \"'\";\n}\n\nfunction fmtDate(ts) {\n  return new Date(ts).toISOString().replace('T', ' ').substring(0, 19);\n}\n\nconst rows = botMsgs.map(m => {\n  const content = m.content || (m.embeds?.length > 0 ? '[embed]' : '');\n  return `(${esc(m.id)}, ${esc('1475146787974152355')}, ${esc(content)}, ${esc(m.author.username || m.author.global_name || '')}, ${esc(m.author.id)}, ${esc(fmtDate(m.timestamp))})`;\n});\n\nconst sql = `INSERT IGNORE INTO discord_messages (message_id, channel_id, content, author_name, author_id, sent_at) VALUES ${rows.join(', ')}`;\n\nreturn [{ json: { sql, ids: botMsgs.map(m => m.id), count: botMsgs.length } }];"
+      }
+    },
+    {
+      "id": "if-has",
+      "name": "有 BOT 訊息",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "mysql-write",
+      "name": "寫入 MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        300,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "mySql": {
+          "id": "gXDp7FmbdrMmynX9",
+          "name": "discord_bot_db"
+        }
+      }
+    },
+    {
+      "id": "split-ids",
+      "name": "準備刪除清單",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ids = $('過濾並準備').first().json.ids;\nreturn ids.map(id => ({ json: { message_id: id } }));"
+      }
+    },
+    {
+      "id": "discord-delete",
+      "name": "刪除 Discord 訊息",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        -120
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://discord.com/api/v10/channels/1475146787974152355/messages/{{ $json.message_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ITgiYEpOvlhGViAL",
+          "name": "Discord Bot (archive)"
+        }
+      }
+    },
+    {
+      "id": "summary",
+      "name": "結果摘要",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prepData = $('過濾並準備').first().json;\nconst deleteItems = $input.all();\nconst ok = deleteItems.filter(i => !i.error).length;\nreturn [{ json: {\n  result: `✅ 寫入 ${prepData.count} 則，Discord 刪除 ${ok}/${prepData.count} 則`,\n  written: prepData.count,\n  deleted: ok\n}}];"
+      }
+    }
+  ],
+  "connections": {
+    "手動觸發": {
+      "main": [
+        [
+          {
+            "node": "讀取 Discord 訊息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取 Discord 訊息": {
+      "main": [
+        [
+          {
+            "node": "過濾並準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "過濾並準備": {
+      "main": [
+        [
+          {
+            "node": "有 BOT 訊息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "有 BOT 訊息": {
+      "main": [
+        [
+          {
+            "node": "寫入 MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "寫入 MySQL": {
+      "main": [
+        [
+          {
+            "node": "準備刪除清單",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "準備刪除清單": {
+      "main": [
+        [
+          {
+            "node": "刪除 Discord 訊息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "刪除 Discord 訊息": {
+      "main": [
+        [
+          {
+            "node": "結果摘要",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "active": false,
+  "versionId": "e9fd24de-6920-4250-993f-8b1963506c4a",
+  "id": "vw9JeSf4Juu2kIQy",
+  "description": null,
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "activeVersionId": null,
+  "updatedAt": "2026-03-14T07:49:00.914Z",
+  "createdAt": "2026-03-14T07:49:00.914Z",
+  "isArchived": false,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "_note": "credentials stored in n8n only"
+}
