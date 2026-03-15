@@ -2,20 +2,6 @@
 
 以 Docker 運行的 n8n 自動化工作流程，結合 Windows 原生服務，推送天氣、AI 新聞、MCP 週報至 Discord，並支援 Discord 指令即時觸發。
 
----
-
-## 工作流清單
-
-| Workflow | ID | 觸發方式 | Discord 頻道 | 說明 |
-| --- | --- | --- | --- | --- |
-| 天氣推送 | `mdKFGSBLSuWhI1sc6gS03` | Webhook（Docker 啟動時） | `bot通知` | 推送台北士林區今明兩日天氣 |
-| AI新聞推送 | `ZBjln2ULmeZoCiiA` | Schedule 每日 23:00 | `bot_ai新知` | RSS → Gemini 摘要 → 推送（已推送不重複） |
-| 網路監控 | `cPGAOxwlki9pB88x` | Webhook `network-recovered` | `bot通知` | 斷網恢復通知（Windows Node.js 觸發） |
-| MCP Server 週報 | `LxwVTKy2YIt80LP1` | Schedule 每週一 23:00 | `bot_ai新知` | GitHub MCP Server → Gemini 評選 5 個 |
-| Discord 指令調度器 | `XEX5TLxo9hIgzsG7` | Discord Trigger 即時監聽 | `bot_指令專區` | `!news` / `!mcpweeknews` / `!help` |
-
----
-
 ## 架構
 
 ```text
